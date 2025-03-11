@@ -3,9 +3,11 @@ import type { Member } from '~/types';
 
 interface MembersTabProps {
   members: Member[];
+  onRefresh?: () => void;
+  isLoading?: boolean;
 }
 
-export default function MembersTab({ members }: MembersTabProps) {
+export default function MembersTab({ members, onRefresh, isLoading = false }: MembersTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all'); // 'all', 'active', 'inactive'
   const [currentPage, setCurrentPage] = useState(1);
@@ -37,7 +39,32 @@ export default function MembersTab({ members }: MembersTabProps) {
 
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold text-gray-800">Members</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-800">Members</h2>
+        {onRefresh && (
+          <button 
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
+              isLoading 
+                ? 'bg-blue-400 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+            onClick={onRefresh}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Refreshing...
+              </span>
+            ) : (
+              'Refresh'
+            )}
+          </button>
+        )}
+      </div>
       
       {/* Search and Filter */}
       <div className="mb-6">
@@ -54,7 +81,7 @@ export default function MembersTab({ members }: MembersTabProps) {
               className="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="Search by name or phone..."
               value={searchTerm}
-              onChange={(e) => {
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1); // Reset to first page on search
               }}
@@ -113,73 +140,85 @@ export default function MembersTab({ members }: MembersTabProps) {
       </div>
       
       {/* Members Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                Member
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                Membership
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                Status
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                Last Check-in
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
-            {currentMembers.length > 0 ? (
-              currentMembers.map((member) => (
-                <tr key={member.id}>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <div className="flex items-center">
-                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-medium text-gray-500">
-                        {member.initials}
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-pulse flex flex-col items-center">
+            <svg className="animate-spin h-10 w-10 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="mt-4 text-gray-600">Loading member data...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-gray-200">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Member
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Membership
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Status
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Last Check-in
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {currentMembers.length > 0 ? (
+                currentMembers.map((member) => (
+                  <tr key={member.id}>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <div className="flex items-center">
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-medium text-gray-500">
+                          {member.initials}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{member.name}</div>
+                          <div className="text-sm text-gray-500">{member.phoneNumber}</div>
+                        </div>
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{member.name}</div>
-                        <div className="text-sm text-gray-500">{member.phoneNumber}</div>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <div className="text-sm text-gray-900">{member.membershipType}</div>
+                      <div className="text-sm text-gray-500">
+                        {member.nextPayment ? `Next: ${member.nextPayment}` : 'Payment overdue'}
                       </div>
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <div className="text-sm text-gray-900">{member.membershipType}</div>
-                    <div className="text-sm text-gray-500">
-                      {member.nextPayment ? `Next: ${member.nextPayment}` : 'Payment overdue'}
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                      member.status === 'Active' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {member.status}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <div className="text-sm text-gray-900">{member.lastCheckIn}</div>
-                    <div className="text-sm text-gray-500">{member.visitsThisMonth} visits this month</div>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                        member.status === 'Active' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {member.status}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <div className="text-sm text-gray-900">{member.lastCheckIn}</div>
+                      <div className="text-sm text-gray-500">{member.visitsThisMonth} visits this month</div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
+                    No members found matching your search criteria
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
-                  No members found matching your search criteria
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
       
       {/* Pagination controls */}
-      {totalPages > 1 && (
+      {!isLoading && totalPages > 1 && (
         <div className="mt-6 flex items-center justify-between border-t border-gray-200 px-4 py-3 sm:px-6">
           <div className="flex flex-1 justify-between sm:hidden">
             <button

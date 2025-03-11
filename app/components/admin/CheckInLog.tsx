@@ -4,9 +4,10 @@ import type { CheckInRecord } from '~/types';
 interface CheckInLogProps {
   checkIns: CheckInRecord[];
   onRefresh: () => void;
+  isLoading?: boolean;
 }
 
-export default function CheckInLog({ checkIns, onRefresh }: CheckInLogProps) {
+export default function CheckInLog({ checkIns, onRefresh, isLoading = false }: CheckInLogProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 9; // Show 9 items per page (3x3 grid)
@@ -33,10 +34,25 @@ export default function CheckInLog({ checkIns, onRefresh }: CheckInLogProps) {
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gray-800">Check-in Log</h2>
         <button 
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
+            isLoading 
+              ? 'bg-blue-400 cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-700'
+          }`}
           onClick={onRefresh}
+          disabled={isLoading}
         >
-          Refresh
+          {isLoading ? (
+            <span className="flex items-center">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Refreshing...
+            </span>
+          ) : (
+            'Refresh'
+          )}
         </button>
       </div>
       
@@ -52,7 +68,7 @@ export default function CheckInLog({ checkIns, onRefresh }: CheckInLogProps) {
             className="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             placeholder="Search by name or phone..."
             value={searchTerm}
-            onChange={(e) => {
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               setSearchTerm(e.target.value);
               setCurrentPage(1); // Reset to first page on search
             }}
@@ -60,60 +76,72 @@ export default function CheckInLog({ checkIns, onRefresh }: CheckInLogProps) {
         </div>
       </div>
       
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {currentItems.length > 0 ? (
-          currentItems.map((checkIn) => (
-            <div 
-              key={checkIn.id}
-              className={`rounded-lg border p-4 ${
-                checkIn.success ? 'border-green-200' : 'border-red-200'
-              }`}
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${
-                    checkIn.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {checkIn.initials}
-                  </div>
-                  <div className="ml-3">
-                    <p className="font-medium text-gray-900">{checkIn.customerName}</p>
-                    <p className="text-sm text-gray-500">{checkIn.phoneNumber}</p>
-                  </div>
-                </div>
-                <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                  checkIn.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {checkIn.success ? 'Success' : 'Failed'}
-                </span>
-              </div>
-              
-              <div className="mb-3">
-                <p className="text-sm text-gray-600">{checkIn.message}</p>
-                <p className="mt-1 text-sm text-gray-600">
-                  <span className="font-medium">Membership:</span> {checkIn.membershipType}
-                </p>
-                {checkIn.nextPayment && (
-                  <p className="mt-1 text-sm text-gray-600">
-                    <span className="font-medium">Next payment:</span> {checkIn.nextPayment}
-                  </p>
-                )}
-              </div>
-              
-              <div className="text-right text-xs text-gray-500">
-                {new Date(checkIn.timestamp).toLocaleString()}
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-full py-8 text-center text-gray-500">
-            No check-ins found matching your search criteria
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-pulse flex flex-col items-center">
+            <svg className="animate-spin h-10 w-10 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="mt-4 text-gray-600">Loading check-in data...</p>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {currentItems.length > 0 ? (
+            currentItems.map((checkIn) => (
+              <div 
+                key={checkIn.id}
+                className={`rounded-lg border p-4 ${
+                  checkIn.success ? 'border-green-200' : 'border-red-200'
+                }`}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${
+                      checkIn.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {checkIn.initials}
+                    </div>
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">{checkIn.customerName}</p>
+                      <p className="text-sm text-gray-500">{checkIn.phoneNumber}</p>
+                    </div>
+                  </div>
+                  <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                    checkIn.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {checkIn.success ? 'Success' : 'Failed'}
+                  </span>
+                </div>
+                
+                <div className="mb-3">
+                  <p className="text-sm text-gray-600">{checkIn.message}</p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    <span className="font-medium">Membership:</span> {checkIn.membershipType}
+                  </p>
+                  {checkIn.nextPayment && (
+                    <p className="mt-1 text-sm text-gray-600">
+                      <span className="font-medium">Next payment:</span> {checkIn.nextPayment}
+                    </p>
+                  )}
+                </div>
+                
+                <div className="text-right text-xs text-gray-500">
+                  {new Date(checkIn.timestamp).toLocaleString()}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full py-8 text-center text-gray-500">
+              No check-ins found matching your search criteria
+            </div>
+          )}
+        </div>
+      )}
       
       {/* Pagination controls */}
-      {totalPages > 1 && (
+      {!isLoading && totalPages > 1 && (
         <div className="mt-6 flex items-center justify-between border-t border-gray-200 px-4 py-3 sm:px-6">
           <div className="flex flex-1 justify-between sm:hidden">
             <button

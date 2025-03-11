@@ -1,5 +1,5 @@
 import { json, redirect, type LoaderFunctionArgs } from '@remix-run/node';
-import { useLoaderData, Link } from '@remix-run/react';
+import { useLoaderData, useFetcher, Link } from '@remix-run/react';
 import { useState, useEffect } from 'react';
 import { getEnv } from '~/utils/env.server';
 import type { 
@@ -55,7 +55,68 @@ export async function loader({ request }: LoaderFunctionArgs) {
   await requireAdmin(request);
   
   try {
+    const url = new URL(request.url);
+    const refreshType = url.searchParams.get('refresh');
+    const page = parseInt(url.searchParams.get('page') || '1', 10);
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+    
     const env = getEnv();
+    
+    // If it's a refresh request, only return the requested data
+    if (refreshType === 'checkIns') {
+      const checkInsData = await getRecentCheckIns(page, limit);
+      const checkInStats = await getCheckInStats();
+      
+      const checkIns = checkInsData.checkIns.map((checkIn: any) => ({
+        id: checkIn.id.toString(),
+        timestamp: checkIn.checkInTime.toISOString(),
+        customerName: checkIn.customerName || checkIn.customer.name,
+        phoneNumber: checkIn.phoneNumber || checkIn.customer.phoneNumber || '',
+        success: true, // All stored check-ins are successful
+        membershipType: checkIn.membershipType || checkIn.customer.membershipType || 'Unknown',
+        message: 'Check-in successful',
+        nextPayment: '', // We don't have this information yet
+        initials: (checkIn.customerName || checkIn.customer.name)
+          .split(' ')
+          .map((name: string) => name[0])
+          .join('')
+          .substring(0, 2)
+      }));
+      
+      return json({ checkIns, refreshTimestamp: new Date().toISOString() });
+    }
+    
+    if (refreshType === 'members') {
+      const customersData = await getAllCustomers(page, limit);
+      
+      const members = customersData.customers.map((customer: any) => {
+        // Find the most recent check-in for this customer
+        const lastCheckIn = customer.checkIns && customer.checkIns.length > 0 
+          ? customer.checkIns[0].checkInTime 
+          : null;
+        
+        // Calculate visits this month
+        const visitsThisMonth = customer._count?.checkIns || 0;
+        
+        return {
+          id: customer.id,
+          name: customer.name,
+          phoneNumber: customer.phoneNumber || '',
+          membershipType: customer.membershipType || 'Unknown',
+          status: 'Active', // We don't have status information yet
+          nextPayment: '', // We don't have this information yet
+          lastCheckIn: lastCheckIn ? new Date(lastCheckIn).toLocaleDateString() : 'Never',
+          visitsThisMonth,
+          initials: customer.name
+            .split(' ')
+            .map((name: string) => name[0])
+            .join('')
+            .substring(0, 2)
+        };
+      });
+      
+      return json({ members, refreshTimestamp: new Date().toISOString() });
+    }
     
     // Get real webhook status
     const webhookStatus: WebhookStatusData = getWebhookStatus();
@@ -218,7 +279,7 @@ export default function Admin() {
     squareEnvironment, 
     isConfigured, 
     checkIns: initialCheckIns, 
-    members, 
+    members: initialMembers, 
     analytics, 
     webhookStatus,
     systemStatus,
@@ -228,6 +289,39 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState('checkIns');
   const [notifications, setNotifications] = useState<CheckInRecord[]>([]);
   const [checkIns, setCheckIns] = useState<CheckInRecord[]>(initialCheckIns);
+  const [members, setMembers] = useState<Member[]>(initialMembers);
+  
+  // Create fetchers for refreshing data
+  const checkInsFetcher = useFetcher();
+  const membersFetcher = useFetcher();
+  
+  // Update state when fetcher returns data
+  useEffect(() => {
+    if (checkInsFetcher.data && checkInsFetcher.data.checkIns) {
+      setCheckIns(checkInsFetcher.data.checkIns);
+      
+      // Add a notification about the refresh
+      const refreshNotification: CheckInRecord = {
+        id: 'refresh-' + Date.now().toString(),
+        timestamp: checkInsFetcher.data.refreshTimestamp || new Date().toISOString(),
+        customerName: 'System Refresh',
+        phoneNumber: '',
+        success: true,
+        membershipType: '',
+        message: 'Check-in log refreshed from database',
+        nextPayment: '',
+        initials: 'SR'
+      };
+      
+      setNotifications((prev: CheckInRecord[]) => [refreshNotification, ...prev].slice(0, 5));
+    }
+  }, [checkInsFetcher.data]);
+  
+  useEffect(() => {
+    if (membersFetcher.data && membersFetcher.data.members) {
+      setMembers(membersFetcher.data.members);
+    }
+  }, [membersFetcher.data]);
   
   // Simulate receiving real-time check-ins
   useEffect(() => {
@@ -282,21 +376,14 @@ export default function Admin() {
   
   // Function to manually refresh check-ins
   const handleManualRefresh = () => {
-    // In a real app, this would fetch fresh data from the server
-    // For now, we'll just simulate by adding a timestamp to show it refreshed
-    const refreshMessage: CheckInRecord = {
-      id: 'refresh-' + Date.now().toString(),
-      timestamp: new Date().toISOString(),
-      customerName: 'System Refresh',
-      phoneNumber: '',
-      success: true,
-      membershipType: '',
-      message: 'Check-in log refreshed manually',
-      nextPayment: '',
-      initials: 'SR'
-    };
-    
-    setCheckIns((prev: CheckInRecord[]) => [refreshMessage, ...prev]);
+    // Fetch fresh data from the server
+    checkInsFetcher.load(`/admin?refresh=checkIns&_=${Date.now()}`);
+  };
+  
+  // Function to manually refresh members
+  const handleMembersRefresh = () => {
+    // Fetch fresh data from the server
+    membersFetcher.load(`/admin?refresh=members&_=${Date.now()}`);
   };
   
   return (
@@ -369,11 +456,19 @@ export default function Admin() {
         {/* Tab Content */}
         <div className="rounded-lg bg-white p-6 shadow">
           {activeTab === 'checkIns' && (
-            <CheckInLog checkIns={checkIns} onRefresh={handleManualRefresh} />
+            <CheckInLog 
+              checkIns={checkIns} 
+              onRefresh={handleManualRefresh} 
+              isLoading={checkInsFetcher.state !== 'idle'} 
+            />
           )}
           
           {activeTab === 'members' && (
-            <MembersTab members={members} />
+            <MembersTab 
+              members={members} 
+              onRefresh={handleMembersRefresh} 
+              isLoading={membersFetcher.state !== 'idle'} 
+            />
           )}
           
           {activeTab === 'membership' && (
